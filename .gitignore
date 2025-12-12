@@ -1,0 +1,50 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+build/
+out/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Backup files
+backup_*/
+*.backup
+
+# Cache
+.cache/
+*.cache
+
+# Large files (GitHub limit 100MB)
+*.ai
+*.psd
+*.eps
+__MACOSX/
