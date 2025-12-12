@@ -1,6 +1,7 @@
 
 export enum GameState {
   MENU = 'MENU',
+  TRANSITION = 'TRANSITION',
   PLAYING = 'PLAYING',
   PAUSED = 'PAUSED',
   GAME_OVER = 'GAME_OVER',
@@ -210,6 +211,14 @@ export interface NPC {
   dialog?: NPCDialog; // Custom dialog tree
   animationSpeed?: number; // Animation speed multiplier (default: 1.0)
   animationState?: 'idle' | 'walk' | 'attack'; // Current animation state
+  traderVariant?: 1 | 2 | 3; // Variant for merchant textures (1, 2, or 3)
+  trainerVariant?: 1 | 2 | 3; // Variant for trainer textures (1, 2, or 3)
+  citizenVariant?: 1 | 2 | 3; // Variant for citizen textures (1, 2, or 3)
+  elderVariant?: 1 | 2 | 3; // Variant for elder textures (1, 2, or 3)
+  homelessVariant?: 1 | 2 | 3; // Variant for homeless textures (1, 2, or 3)
+  // Anchor point for NPC movement restriction
+  anchorPoint?: { x: number; y: number }; // Point to which NPC is anchored
+  anchorRadius?: number; // Maximum distance from anchor point (default: 96 = 3 tiles)
 }
 
 export interface Animal {

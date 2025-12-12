@@ -349,6 +349,10 @@ const MapEditor: React.FC<MapEditorProps> = ({ onClose }) => {
   const [imageCategoryFilter, setImageCategoryFilter] = useState<string>('All');
   const [imageSearchQuery, setImageSearchQuery] = useState<string>('');
   
+  // Selected object state for click selection
+  const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
+  const [selectedObjectType, setSelectedObjectType] = useState<'IMAGE' | 'BUILDING' | 'NPC' | 'ANIMAL' | null>(null);
+  
   // Load images for preview
   const [loadedImages, setLoadedImages] = useState<{ [key: string]: HTMLImageElement }>({});
   
@@ -660,6 +664,80 @@ const MapEditor: React.FC<MapEditorProps> = ({ onClose }) => {
   };
 
   const handleTileEdit = (tileX: number, tileY: number, worldX: number, worldY: number) => {
+    // First, check if clicking on existing object for selection/deselection
+    if (currentTool !== 'ERASE') {
+      // Check if clicking on an image object
+      const clickedImage = imageObjects.find(img => {
+        const width = img.width || TILE_SIZE;
+        const height = img.height || TILE_SIZE;
+        return worldX >= img.x - width/2 && worldX <= img.x + width/2 &&
+               worldY >= img.y - height/2 && worldY <= img.y + height/2;
+      });
+      
+      if (clickedImage) {
+        // Toggle selection - if already selected, deselect; otherwise select
+        if (selectedObjectId === clickedImage.id && selectedObjectType === 'IMAGE') {
+          setSelectedObjectId(null);
+          setSelectedObjectType(null);
+        } else {
+          setSelectedObjectId(clickedImage.id);
+          setSelectedObjectType('IMAGE');
+        }
+        return;
+      }
+      
+      // Check if clicking on a building
+      const clickedBuilding = buildings.find(b => 
+        tileX >= b.x && tileX < b.x + b.width &&
+        tileY >= b.y && tileY < b.y + b.height
+      );
+      
+      if (clickedBuilding) {
+        if (selectedObjectId === clickedBuilding.id && selectedObjectType === 'BUILDING') {
+          setSelectedObjectId(null);
+          setSelectedObjectType(null);
+        } else {
+          setSelectedObjectId(clickedBuilding.id);
+          setSelectedObjectType('BUILDING');
+        }
+        return;
+      }
+      
+      // Check if clicking on NPC
+      const clickedNpc = npcs.find(npc => {
+        const dist = Math.sqrt((npc.x - worldX) ** 2 + (npc.y - worldY) ** 2);
+        return dist < 10;
+      });
+      
+      if (clickedNpc) {
+        if (selectedObjectId === clickedNpc.id && selectedObjectType === 'NPC') {
+          setSelectedObjectId(null);
+          setSelectedObjectType(null);
+        } else {
+          setSelectedObjectId(clickedNpc.id);
+          setSelectedObjectType('NPC');
+        }
+        return;
+      }
+      
+      // Check if clicking on animal
+      const clickedAnimal = animals.find(animal => {
+        const dist = Math.sqrt((animal.x - worldX) ** 2 + (animal.y - worldY) ** 2);
+        return dist < 8;
+      });
+      
+      if (clickedAnimal) {
+        if (selectedObjectId === clickedAnimal.id && selectedObjectType === 'ANIMAL') {
+          setSelectedObjectId(null);
+          setSelectedObjectType(null);
+        } else {
+          setSelectedObjectId(clickedAnimal.id);
+          setSelectedObjectType('ANIMAL');
+        }
+        return;
+      }
+    }
+    
     if (currentTool === 'ERASE') {
       // Check if clicking on an image object
       const clickedImage = imageObjects.find(img => {

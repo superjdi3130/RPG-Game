@@ -14,7 +14,12 @@ export const drawHumanoid = (
     time: number,
     weapon?: Item | null,
     equippedCosmeticId?: string,
-    skipShadow?: boolean
+    skipShadow?: boolean,
+    traderVariant?: 1 | 2 | 3,
+    trainerVariant?: 1 | 2 | 3,
+    citizenVariant?: 1 | 2 | 3,
+    elderVariant?: 1 | 2 | 3,
+    homelessVariant?: 1 | 2 | 3
 ) => {
     // Ground shadow anchored near the feet; negative offset lifts shadow upward
     const drawGroundShadow = (offsetY = -3) => {
@@ -314,12 +319,14 @@ export const drawHumanoid = (
     if (type === 'elder') {
         // Raise shadow closer to feet
         drawGroundShadow(-5);
-        const elderSprites = {
-            idle: imageLoader.getSprite('elder_idle'),
-            walk: imageLoader.getSprite('elder_walk'),
-            attack: imageLoader.getSprite('elder_attack'),
-            hurt: imageLoader.getSprite('elder_hurt')
-        } satisfies Record<AnimationState, HTMLImageElement | null | undefined>;
+        // Use specific variant if provided, otherwise default to variant 1
+        const variant = elderVariant ?? 1;
+        const elderSprites: Record<AnimationState, HTMLImageElement | null | undefined> = {
+            idle: imageLoader.getSprite(`elder_${variant}_idle` as any),
+            walk: imageLoader.getSprite(`elder_${variant}_walk` as any),
+            attack: imageLoader.getSprite(`elder_${variant}_attack` as any),
+            hurt: imageLoader.getSprite(`elder_${variant}_hurt` as any)
+        };
 
         // Pick sprite by current state; fallback to idle if missing
         const sprite = elderSprites[animState] ?? elderSprites.idle;
@@ -617,12 +624,14 @@ export const drawHumanoid = (
     if (type === 'merchant') {
         // Raise shadow closer to feet
         drawGroundShadow(-5);
-        const merchantSprites = {
-            idle: imageLoader.getSprite('merchant_idle'),
-            walk: imageLoader.getSprite('merchant_walk'),
-            attack: imageLoader.getSprite('merchant_attack'),
-            hurt: imageLoader.getSprite('merchant_hurt')
-        } satisfies Record<AnimationState, HTMLImageElement | null | undefined>;
+        // Use specific variant if provided, otherwise default to variant 1
+        const variant = traderVariant ?? 1;
+        const merchantSprites: Record<AnimationState, HTMLImageElement | null | undefined> = {
+            idle: imageLoader.getSprite(`merchant_${variant}_idle` as any),
+            walk: imageLoader.getSprite(`merchant_${variant}_walk` as any),
+            attack: imageLoader.getSprite(`merchant_${variant}_attack` as any),
+            hurt: imageLoader.getSprite(`merchant_${variant}_hurt` as any)
+        };
 
         // Pick sprite by current state; fallback to idle if missing
         const sprite = merchantSprites[animState] ?? merchantSprites.idle;
@@ -1059,18 +1068,41 @@ export const drawHumanoid = (
     if (type === 'trainer') {
         // Raise shadow closer to feet
         drawGroundShadow(-5);
-        const trainerSprites = {
-            idle: imageLoader.getSprite('trainer_idle'),
-            walk: imageLoader.getSprite('trainer_walk'),
-            attack: imageLoader.getSprite('trainer_attack'),
-            hurt: imageLoader.getSprite('trainer_hurt')
-        } satisfies Record<AnimationState, HTMLImageElement | null | undefined>;
+        // Use specific variant if provided, otherwise default to variant 1
+        let variant = trainerVariant ?? 1;
+        
+        // Try to get sprites for the variant, fallback to variant 1 if not loaded
+        let trainerSprites: Record<AnimationState, HTMLImageElement | null | undefined> = {
+            idle: imageLoader.getSprite(`trainer_${variant}_idle` as any),
+            walk: imageLoader.getSprite(`trainer_${variant}_walk` as any),
+            attack: imageLoader.getSprite(`trainer_${variant}_attack` as any),
+            hurt: imageLoader.getSprite(`trainer_${variant}_hurt` as any)
+        };
+        
+        // If sprites are not loaded, fallback to variant 1
+        if (!trainerSprites.idle || (trainerSprites.idle && !trainerSprites.idle.complete)) {
+            variant = 1;
+            const fallback1 = imageLoader.getSprite('trainer_1_idle' as any);
+            const fallback2 = imageLoader.getSprite('trainer_idle');
+            trainerSprites = {
+                idle: (fallback1 && fallback1.complete) ? fallback1 : (fallback2 && fallback2.complete ? fallback2 : null),
+                walk: imageLoader.getSprite('trainer_1_walk' as any) ?? imageLoader.getSprite('trainer_walk'),
+                attack: imageLoader.getSprite('trainer_1_attack' as any) ?? imageLoader.getSprite('trainer_attack'),
+                hurt: imageLoader.getSprite('trainer_1_hurt' as any) ?? imageLoader.getSprite('trainer_hurt')
+            };
+        }
 
         // Pick sprite by current state; fallback to idle if missing
-        const sprite = trainerSprites[animState] ?? trainerSprites.idle;
+        let sprite = trainerSprites[animState] ?? trainerSprites.idle;
+        
+        // Final fallback: if sprite is not available, try default trainer sprites
+        if (!sprite || !sprite.complete) {
+            sprite = imageLoader.getSprite('trainer_idle');
+        }
 
-        if (sprite && sprite.complete) {
+        if (sprite && sprite.complete && sprite.width > 0 && sprite.height > 0) {
             // Check if sprite is a sprite sheet (4 directional rows like warrior) or horizontal frames
+            // Knight textures have 4 directional rows format (like warrior)
             const isSpriteSheet = sprite.width > sprite.height * 2;
             const scale = 0.75; // Same scale as elder/citizen
             let frameW = sprite.width;
@@ -1079,7 +1111,7 @@ export const drawHumanoid = (
             let sourceY = 0;
             
             if (isSpriteSheet && sprite.height > sprite.width / 4) {
-                // 4 directional rows format (like warrior)
+                // 4 directional rows format (like warrior/knight)
                 const SHEET_ROWS = 4;
                 const ROW_SIDE_LEFT = 1;
                 frameH = sprite.height / SHEET_ROWS;
@@ -1095,7 +1127,7 @@ export const drawHumanoid = (
                 sourceX = frameIndex * frameW;
                 sourceY = row * frameH;
             } else {
-                // Horizontal frames format (like homeless)
+                // Horizontal frames format (like homeless/citizen)
                 const framesPerRow = Math.max(1, Math.floor(sprite.width / sprite.height));
                 frameW = sprite.width / framesPerRow;
                 frameH = sprite.height;

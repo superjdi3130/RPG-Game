@@ -101,6 +101,19 @@ const AnimatedNPCPreview: React.FC<{
         }
       }
       
+      // Тренер не отображается в превью
+      if (npc.type === 'TRAINER') {
+        ctx.fillStyle = '#333';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#666';
+        ctx.font = '8px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Trainer', canvas.width / 2, canvas.height / 2);
+        animIdRef.current = requestAnimationFrame(render);
+        return;
+      }
+      
       // Используем стандартную анимацию
       const animState = animationState || npc.animationState || 'idle';
       const animSpeed = animationSpeed || npc.animationSpeed || 1.0;
@@ -121,7 +134,13 @@ const AnimatedNPCPreview: React.FC<{
         attackProgress,
         animTime,
         null,
-        null
+        null,
+        undefined,
+        npc.traderVariant,
+        npc.trainerVariant,
+        npc.citizenVariant,
+        npc.elderVariant,
+        npc.homelessVariant
       );
       ctx.restore();
       
@@ -1617,7 +1636,7 @@ const GameComponent: React.FC<GameProps> = ({
   // Map Editor State
   const [isEditorMode, setIsEditorMode] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<'terrain' | 'decoration' | 'tile' | 'tileTexture' | 'ruins' | 'objects' | 'npc' | 'newTextures'>('terrain');
-  const [selectedItem, setSelectedItem] = useState<string>('GRASS');
+  const [selectedItem, setSelectedItem] = useState<string>(''); // Не выбираем автоматически
   const [selectedItemPath, setSelectedItemPath] = useState<string>('');
   
   // Texture Editor State
@@ -1629,11 +1648,18 @@ const GameComponent: React.FC<GameProps> = ({
   const [selectedNPCId, setSelectedNPCId] = useState<string | null>(null);
   const [npcPlacementMode, setNpcPlacementMode] = useState(false);
   const [npcPlacementType, setNpcPlacementType] = useState<NPC['type']>('CITIZEN');
+  
+  // Editor object selection state (для онлайн редактора карт)
+  const [selectedEditorObjectId, setSelectedEditorObjectId] = useState<string | null>(null);
+  const [selectedEditorObjectType, setSelectedEditorObjectType] = useState<'NPC' | 'ANIMAL' | null>(null);
   const [npcTextureEditorOpen, setNpcTextureEditorOpen] = useState(false);
   const [isNpcTextureEditorOpen, setIsNpcTextureEditorOpen] = useState(false);
   const [selectedNpcForTexture, setSelectedNpcForTexture] = useState<NPC | null>(null);
   const [customNpcTextures, setCustomNpcTextures] = useState<Array<{ id: string; path: string; label: string; width: number; height: number; frames?: number }>>([]);
   const npcTextureFileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Состояние для перетаскивания точки привязки NPC
+  const [draggingAnchorPoint, setDraggingAnchorPoint] = useState<string | null>(null);
   
   // Загрузка кастомных текстур NPC из localStorage
   useEffect(() => {
@@ -1828,7 +1854,7 @@ const GameComponent: React.FC<GameProps> = ({
   // Refs for editor state to ensure we always have latest values in event handlers
   const isEditorModeRef = useRef<boolean>(false);
   const selectedCategoryRef = useRef<'terrain' | 'decoration' | 'tile' | 'tileTexture' | 'ruins' | 'objects' | 'npc' | 'newTextures'>('terrain');
-  const selectedItemRef = useRef<string>('GRASS');
+  const selectedItemRef = useRef<string>(''); // Не выбираем автоматически
   const selectedItemPathRef = useRef<string>('');
   const selectedHitboxObjectRef = useRef<{ id: string; type: 'NPC' | 'ENEMY' | 'ANIMAL' | 'PLAYER' | 'TILE'; tileX?: number; tileY?: number; } | null>(null);
   
@@ -4299,6 +4325,31 @@ const GameComponent: React.FC<GameProps> = ({
         const rawY = (e.clientY - rect.top) * scaleY;
         mouse.current.x = rawX; 
         mouse.current.y = rawY;
+        
+        // Обновление позиции точки привязки при перетаскивании
+        if (draggingAnchorPoint && mouse.current.down) {
+            const zoom = cameraZoomRef.current;
+            const camW = resolution.width / zoom;
+            const camH = resolution.height / zoom;
+            const camX = playerRef.current.x - camW / 2;
+            const camY = playerRef.current.y - camH / 2;
+            const shakeX = shakeRef.current > 0 ? (Math.random() - 0.5) * shakeRef.current : 0;
+            const shakeY = shakeRef.current > 0 ? (Math.random() - 0.5) * shakeRef.current : 0;
+            
+            const worldX = camX + (rawX / zoom) - shakeX;
+            const worldY = camY + (rawY / zoom) - shakeY;
+            
+            // Обновляем позицию точки привязки
+            if (draggingAnchorPoint === 'trainer_static') {
+                // Тренер не поддерживает точку привязки в текущей реализации
+            } else {
+                const npcIndex = npcsRef.current.findIndex(n => n.id === draggingAnchorPoint);
+                if (npcIndex !== -1 && npcsRef.current[npcIndex].anchorPoint) {
+                    npcsRef.current[npcIndex].anchorPoint = { x: worldX, y: worldY };
+                    scheduleEditorSave();
+                }
+            }
+        }
       }
     };
     const handleMouseDown = (e: MouseEvent) => {
@@ -4385,6 +4436,8 @@ const GameComponent: React.FC<GameProps> = ({
                         const dist = Math.hypot(npc.x - worldX, npc.y - worldY);
                         if (dist < SELECT_RADIUS) {
                             setSelectedNPCId(npc.id);
+                            // Автоматически выбираем объект для редактора хитбоксов
+                            setSelectedHitboxObject({ id: npc.id, type: 'NPC' });
                             // Если редактор NPC не открыт, открываем его
                             if (!isNPCEditorOpen) {
                                 setIsNPCEditorOpen(true);
@@ -4398,10 +4451,15 @@ const GameComponent: React.FC<GameProps> = ({
                     if (trainerRef.current && (trainerRef.current.x > 0 || trainerRef.current.y > 0)) {
                         const dist = Math.hypot(trainerRef.current.x - worldX, trainerRef.current.y - worldY);
                         if (dist < SELECT_RADIUS) {
-                            setSelectedNPCId('trainer_static');
-                            // Если редактор NPC не открыт, открываем его
-                            if (!isNPCEditorOpen) {
-                                setIsNPCEditorOpen(true);
+                            // Toggle selection
+                            if (selectedNPCId === 'trainer_static') {
+                                setSelectedNPCId(null);
+                            } else {
+                                setSelectedNPCId('trainer_static');
+                                // Если редактор NPC не открыт, открываем его
+                                if (!isNPCEditorOpen) {
+                                    setIsNPCEditorOpen(true);
+                                }
                             }
                             e.preventDefault();
                             return;
@@ -4483,12 +4541,40 @@ const GameComponent: React.FC<GameProps> = ({
                 
                 // Deselect if clicking on empty space
                 setSelectedHitboxObject(null);
+                // Также деселектим объекты в онлайн редакторе
+                if (editorMode) {
+                    setSelectedEditorObjectId(null);
+                    setSelectedEditorObjectType(null);
+                }
                 return;
             }
             
             // Convert to tile coordinates
             const tileX = Math.floor(worldX / TILE_SIZE);
             const tileY = Math.floor(worldY / TILE_SIZE);
+            
+            // Деселект объектов редактора при клике на пустое место
+            if (editorMode && e.button === 0 && !e.shiftKey && tileX >= 0 && tileX < MAP_WIDTH && tileY >= 0 && tileY < MAP_HEIGHT) {
+                const tile = tilesRef.current[tileY]?.[tileX];
+                if (tile) {
+                    // Проверяем, не кликнули ли на объект (NPC/Animal)
+                    const clickedNPC = npcsRef.current.find(npc => {
+                        const dist = Math.hypot(npc.x - worldX, npc.y - worldY);
+                        return dist < 20;
+                    });
+                    const clickedAnimal = animalsRef.current.find(animal => {
+                        const dist = Math.hypot(animal.x - worldX, animal.y - worldY);
+                        return dist < 15;
+                    });
+                    
+                    // Если не кликнули на объект и не в режиме размещения NPC/Animal, деселектим
+                    const currentCategory = selectedCategoryRef.current;
+                    if (!clickedNPC && !clickedAnimal && currentCategory !== 'npc' && !npcPlacementMode) {
+                        setSelectedEditorObjectId(null);
+                        setSelectedEditorObjectType(null);
+                    }
+                }
+            }
             
             if (tileX >= 0 && tileX < MAP_WIDTH && tileY >= 0 && tileY < MAP_HEIGHT) {
                 const tile = tilesRef.current[tileY]?.[tileX];
@@ -4499,6 +4585,50 @@ const GameComponent: React.FC<GameProps> = ({
                     const currentItem = selectedItemRef.current;
                     
                     if (e.button === 0) { // Left click - place
+                        // Сначала проверяем клик на существующие объекты для выбора/деселекта (это работает даже без выбранного объекта размещения)
+                        if (currentCategory === 'npc' || npcPlacementMode) {
+                            // Проверяем клик на существующие NPC
+                            const clickedNPC = npcsRef.current.find(npc => {
+                                const dist = Math.hypot(npc.x - worldX, npc.y - worldY);
+                                return dist < 20; // Радиус клика
+                            });
+                            
+                            if (clickedNPC) {
+                                // Переключаем выделение
+                                if (selectedEditorObjectId === clickedNPC.id && selectedEditorObjectType === 'NPC') {
+                                    setSelectedEditorObjectId(null);
+                                    setSelectedEditorObjectType(null);
+                                } else {
+                                    setSelectedEditorObjectId(clickedNPC.id);
+                                    setSelectedEditorObjectType('NPC');
+                                }
+                                return; // Не размещаем новый объект
+                            }
+                            
+                            // Проверяем клик на существующие Animal
+                            const clickedAnimal = animalsRef.current.find(animal => {
+                                const dist = Math.hypot(animal.x - worldX, animal.y - worldY);
+                                return dist < 15; // Радиус клика
+                            });
+                            
+                            if (clickedAnimal) {
+                                // Переключаем выделение
+                                if (selectedEditorObjectId === clickedAnimal.id && selectedEditorObjectType === 'ANIMAL') {
+                                    setSelectedEditorObjectId(null);
+                                    setSelectedEditorObjectType(null);
+                                } else {
+                                    setSelectedEditorObjectId(clickedAnimal.id);
+                                    setSelectedEditorObjectType('ANIMAL');
+                                }
+                                return; // Не размещаем новый объект
+                            }
+                        }
+                        
+                        // Если объект размещения не выбран, не размещаем ничего
+                        if (!currentItem || currentItem === '') {
+                            return;
+                        }
+                        
                         if (currentCategory === 'terrain') {
                             // Clear custom texture when placing terrain
                             delete (tile as any).texturePath;
@@ -4542,21 +4672,28 @@ const GameComponent: React.FC<GameProps> = ({
                             const animalItem = animalTypes.find(t => t.value === currentItem);
                             
                             if (npcItem || npcPlacementMode) {
+                                try {
                                 // Place NPC
-                                const npcType = npcPlacementMode ? npcPlacementType : (currentItem as NPC['type']);
+                                    const npcType = npcPlacementMode ? npcPlacementType : (currentItem as NPC['type']);
                                 const newNPC: NPC = {
                                     id: `npc_${Date.now()}_${Math.random()}`,
                                     x: worldX,
                                     y: worldY,
-                                    type: npcType
+                                        type: npcType,
+                                        // Randomly assign trader variant (1, 2, or 3) for merchants
+                                    // Randomly assign texture variants
+                                    ...(npcType === 'MERCHANT' ? { traderVariant: (Math.floor(Math.random() * 3) + 1) as 1 | 2 | 3 } : {}),
+                                    ...(npcType === 'TRAINER' ? { trainerVariant: (Math.floor(Math.random() * 3) + 1) as 1 | 2 | 3 } : {}),
+                                    ...(npcType === 'CITIZEN' || npcType === 'CHILD' ? { citizenVariant: (Math.floor(Math.random() * 3) + 1) as 1 | 2 | 3 } : {}),
+                                    ...(npcType === 'ELDER' ? { elderVariant: (Math.floor(Math.random() * 3) + 1) as 1 | 2 | 3 } : {})
                                 };
                                 npcsRef.current.push(newNPC);
                                 changed = true;
-                                console.log('Editor: Placed NPC', npcType, 'at', worldX, worldY);
-                                
-                                // Если размещаем из редактора NPC, автоматически выбираем созданный NPC
-                                if (npcPlacementMode) {
-                                    setSelectedNPCId(newNPC.id);
+                                    console.log('Editor: Placed NPC', npcType, 'at', worldX, worldY);
+                                    
+                                    // Не выбираем автоматически - выбор только при клике
+                                } catch (error) {
+                                    console.error('Error placing NPC:', error);
                                 }
                             } else if (animalItem) {
                                 // Place Animal
@@ -4609,7 +4746,13 @@ const GameComponent: React.FC<GameProps> = ({
             }
         }
     };
-    const handleMouseUp = () => mouse.current.down = false;
+    const handleMouseUp = () => {
+        mouse.current.down = false;
+        // Останавливаем перетаскивание точки привязки
+        if (draggingAnchorPoint) {
+            setDraggingAnchorPoint(null);
+        }
+    };
     const handleWheel = (e: WheelEvent) => {
       // If editor is open, don't change camera zoom - let the editor list scroll instead
       if (isEditorMode) {
@@ -4936,19 +5079,30 @@ const GameComponent: React.FC<GameProps> = ({
         const pauseMax = 180;
         npcsRef.current.forEach(npc => {
             if (npc.type !== 'MERCHANT' && npc.type !== 'CITIZEN' && npc.type !== 'ELDER' && npc.type !== 'CHILD') return;
+            
+            // Use anchor point if set, otherwise use current position as home
+            const anchorPoint = npc.anchorPoint || { x: npc.x, y: npc.y };
+            const maxRadius = npc.anchorRadius ?? (npc.anchorPoint ? 96 : wanderRadius); // 96 = 3 tiles if anchored
+            
             const state = npcStateRef.current.get(npc.id) || {
-                home: { x: npc.x, y: npc.y },
+                home: anchorPoint,
                 target: null,
                 wait: Math.floor(Math.random() * (pauseMax - pauseMin) + pauseMin)
             };
+            
+            // Update home if anchor point changed
+            if (npc.anchorPoint) {
+                state.home = anchorPoint;
+            }
+            
             // If waiting, countdown
             if (state.wait > 0) {
                 state.wait -= 1;
             } else {
-                // If no target, pick a new one around home
+                // If no target, pick a new one around anchor/home
                 if (!state.target) {
                     const angle = Math.random() * Math.PI * 2;
-                    const dist = Math.random() * wanderRadius * 0.6 + wanderRadius * 0.4;
+                    const dist = Math.random() * maxRadius * 0.6 + maxRadius * 0.4;
                     state.target = {
                         x: state.home.x + Math.cos(angle) * dist,
                         y: state.home.y + Math.sin(angle) * dist,
@@ -4966,8 +5120,24 @@ const GameComponent: React.FC<GameProps> = ({
                         // Children move slightly faster and more playfully
                         const childSpeed = npc.type === 'CHILD' ? wanderSpeed * 1.3 : wanderSpeed;
                         const step = Math.min(childSpeed, distNpc);
-                        npc.x += (dxNpc / distNpc) * step;
-                        npc.y += (dyNpc / distNpc) * step;
+                        const newX = npc.x + (dxNpc / distNpc) * step;
+                        const newY = npc.y + (dyNpc / distNpc) * step;
+                        
+                        // Check distance from anchor point and limit movement
+                        const distFromAnchor = Math.hypot(newX - anchorPoint.x, newY - anchorPoint.y);
+                        if (distFromAnchor <= maxRadius) {
+                            npc.x = newX;
+                            npc.y = newY;
+                        } else {
+                            // If would exceed radius, move back towards anchor
+                            const angleToAnchor = Math.atan2(anchorPoint.y - npc.y, anchorPoint.x - npc.x);
+                            const maxX = anchorPoint.x + Math.cos(angleToAnchor) * maxRadius;
+                            const maxY = anchorPoint.y + Math.sin(angleToAnchor) * maxRadius;
+                            npc.x = maxX;
+                            npc.y = maxY;
+                            state.target = null;
+                            state.wait = Math.floor(Math.random() * (pauseMax - pauseMin) + pauseMin);
+                        }
                     }
                 }
             }
@@ -5984,7 +6154,23 @@ const GameComponent: React.FC<GameProps> = ({
                         // Используем кастомное состояние анимации, если задано
                         const useMoving = npc.animationState === 'walk' ? true : (npc.animationState === 'idle' ? false : false);
                         const attackProgress = npc.animationState === 'attack' ? 0.5 : 1;
-                        drawHumanoid(c, npc.x, npc.y, '#d97706', 'merchant', false, useMoving, attackProgress, animTimeMerchant, null, null);
+                        drawHumanoid(c, npc.x, npc.y, '#d97706', 'merchant', false, useMoving, attackProgress, animTimeMerchant, null, null, undefined, npc.traderVariant, undefined, undefined, undefined, undefined);
+                        
+                        // Визуальная индикация выбранного NPC в онлайн редакторе карт
+                        if (isEditorMode && selectedEditorObjectId === npc.id && selectedEditorObjectType === 'NPC') {
+                            c.strokeStyle = '#3b82f6';
+                            c.lineWidth = 3;
+                            c.beginPath();
+                            c.arc(npc.x, npc.y - 30, 25, 0, Math.PI * 2);
+                            c.stroke();
+                            // Пульсирующий эффект
+                            const pulse = Math.sin(frameCountRef.current * 0.2) * 0.3 + 0.7;
+                            c.strokeStyle = `rgba(59, 130, 246, ${pulse})`;
+                            c.lineWidth = 2;
+                            c.beginPath();
+                            c.arc(npc.x, npc.y - 30, 30, 0, Math.PI * 2);
+                            c.stroke();
+                        }
                         
                         // Визуальная индикация выбранного NPC в редакторе
                         if (isNPCEditorOpen && selectedNPCId === npc.id) {
@@ -6000,6 +6186,39 @@ const GameComponent: React.FC<GameProps> = ({
                             c.beginPath();
                             c.arc(npc.x, npc.y - 30, 30, 0, Math.PI * 2);
                             c.stroke();
+                            
+                            // Визуализация точки привязки и радиуса (только когда редактор открыт и NPC выбран)
+                            if (npc.anchorPoint && isNPCEditorOpen && selectedNPCId === npc.id) {
+                                const anchorRadius = npc.anchorRadius ?? 96;
+                                const anchorX = npc.anchorPoint.x;
+                                const anchorY = npc.anchorPoint.y;
+                                
+                                // Рисуем радиус (круг)
+                                c.strokeStyle = 'rgba(59, 130, 246, 0.5)';
+                                c.lineWidth = 2;
+                                c.setLineDash([5, 5]);
+                                c.beginPath();
+                                c.arc(anchorX, anchorY, anchorRadius, 0, Math.PI * 2);
+                                c.stroke();
+                                c.setLineDash([]);
+                                
+                                // Рисуем точку привязки
+                                c.fillStyle = '#3b82f6';
+                                c.beginPath();
+                                c.arc(anchorX, anchorY, 6, 0, Math.PI * 2);
+                                c.fill();
+                                c.strokeStyle = '#fff';
+                                c.lineWidth = 2;
+                                c.stroke();
+                                
+                                // Линия от NPC до точки привязки
+                                c.strokeStyle = 'rgba(59, 130, 246, 0.3)';
+                                c.lineWidth = 1;
+                                c.beginPath();
+                                c.moveTo(npc.x, npc.y);
+                                c.lineTo(anchorX, anchorY);
+                                c.stroke();
+                            }
                         }
                         
                         // Merchant name label
@@ -6036,7 +6255,22 @@ const GameComponent: React.FC<GameProps> = ({
                         lights.push({x: npc.x, y: npc.y, radius: 150, color: '#f59e0b', intensity: 0.5});
                     } else if (npc.type === 'TRAINER') {
                         // Тренер не отрисовывается, но механика остается
-                        // drawHumanoid(c, npc.x, npc.y, '#9ca3af', 'trainer', false, false, 1, frameCountRef.current, null, null);
+                        
+                        // Визуальная индикация выбранного NPC в онлайн редакторе карт
+                        if (isEditorMode && selectedEditorObjectId === npc.id && selectedEditorObjectType === 'NPC') {
+                            c.strokeStyle = '#3b82f6';
+                            c.lineWidth = 3;
+                            c.beginPath();
+                            c.arc(npc.x, npc.y - 30, 25, 0, Math.PI * 2);
+                            c.stroke();
+                            // Пульсирующий эффект
+                            const pulse = Math.sin(frameCountRef.current * 0.2) * 0.3 + 0.7;
+                            c.strokeStyle = `rgba(59, 130, 246, ${pulse})`;
+                            c.lineWidth = 2;
+                            c.beginPath();
+                            c.arc(npc.x, npc.y - 30, 30, 0, Math.PI * 2);
+                            c.stroke();
+                        }
                         
                         // Визуальная индикация выбранного NPC в редакторе
                         if (isNPCEditorOpen && selectedNPCId === npc.id) {
@@ -6052,12 +6286,45 @@ const GameComponent: React.FC<GameProps> = ({
                             c.beginPath();
                             c.arc(npc.x, npc.y - 30, 30, 0, Math.PI * 2);
                             c.stroke();
+                            
+                            // Визуализация точки привязки и радиуса (только когда редактор открыт и NPC выбран)
+                            if (npc.anchorPoint && isNPCEditorOpen && selectedNPCId === npc.id) {
+                                const anchorRadius = npc.anchorRadius ?? 96;
+                                const anchorX = npc.anchorPoint.x;
+                                const anchorY = npc.anchorPoint.y;
+                                
+                                // Рисуем радиус (круг)
+                                c.strokeStyle = 'rgba(59, 130, 246, 0.5)';
+                                c.lineWidth = 2;
+                                c.setLineDash([5, 5]);
+                                c.beginPath();
+                                c.arc(anchorX, anchorY, anchorRadius, 0, Math.PI * 2);
+                                c.stroke();
+                                c.setLineDash([]);
+                                
+                                // Рисуем точку привязки
+                                c.fillStyle = '#3b82f6';
+                                c.beginPath();
+                                c.arc(anchorX, anchorY, 6, 0, Math.PI * 2);
+                                c.fill();
+                                c.strokeStyle = '#fff';
+                                c.lineWidth = 2;
+                                c.stroke();
+                                
+                                // Линия от NPC до точки привязки
+                                c.strokeStyle = 'rgba(59, 130, 246, 0.3)';
+                                c.lineWidth = 1;
+                                c.beginPath();
+                                c.moveTo(npc.x, npc.y);
+                                c.lineTo(anchorX, anchorY);
+                                c.stroke();
+                            }
                         }
                     } else if (npc.type === 'ELDER') {
                         // Elder - use proper sprite animation like warrior
                         const animSpeedElder = npc.animationSpeed || 1.0;
                         const animTimeElder = (frameCountRef.current * animSpeedElder) * 0.15;
-                        drawHumanoid(c, npc.x, npc.y, '#9ca3af', 'elder', false, false, 1, animTimeElder, null, null);
+                        drawHumanoid(c, npc.x, npc.y, '#9ca3af', 'elder', false, false, 1, animTimeElder, null, null, undefined, undefined, undefined, undefined, npc.elderVariant, undefined);
                         
                         // Elder name label
                         c.save();
@@ -6091,6 +6358,22 @@ const GameComponent: React.FC<GameProps> = ({
                         c.fillText(elderName, npc.x, npc.y - 63);
                         c.restore();
                         
+                        // Визуальная индикация выбранного NPC в онлайн редакторе карт
+                        if (isEditorMode && selectedEditorObjectId === npc.id && selectedEditorObjectType === 'NPC') {
+                            c.strokeStyle = '#3b82f6';
+                            c.lineWidth = 3;
+                            c.beginPath();
+                            c.arc(npc.x, npc.y - 30, 25, 0, Math.PI * 2);
+                            c.stroke();
+                            // Пульсирующий эффект
+                            const pulse = Math.sin(frameCountRef.current * 0.2) * 0.3 + 0.7;
+                            c.strokeStyle = `rgba(59, 130, 246, ${pulse})`;
+                            c.lineWidth = 2;
+                            c.beginPath();
+                            c.arc(npc.x, npc.y - 30, 30, 0, Math.PI * 2);
+                            c.stroke();
+                        }
+                        
                         // Визуальная индикация выбранного NPC в редакторе
                         if (isNPCEditorOpen && selectedNPCId === npc.id) {
                             c.strokeStyle = '#10b981';
@@ -6105,6 +6388,39 @@ const GameComponent: React.FC<GameProps> = ({
                             c.beginPath();
                             c.arc(npc.x, npc.y - 30, 30, 0, Math.PI * 2);
                             c.stroke();
+                            
+                            // Визуализация точки привязки и радиуса (только когда редактор открыт и NPC выбран)
+                            if (npc.anchorPoint && isNPCEditorOpen && selectedNPCId === npc.id) {
+                                const anchorRadius = npc.anchorRadius ?? 96;
+                                const anchorX = npc.anchorPoint.x;
+                                const anchorY = npc.anchorPoint.y;
+                                
+                                // Рисуем радиус (круг)
+                                c.strokeStyle = 'rgba(59, 130, 246, 0.5)';
+                                c.lineWidth = 2;
+                                c.setLineDash([5, 5]);
+                                c.beginPath();
+                                c.arc(anchorX, anchorY, anchorRadius, 0, Math.PI * 2);
+                                c.stroke();
+                                c.setLineDash([]);
+                                
+                                // Рисуем точку привязки
+                                c.fillStyle = '#3b82f6';
+                                c.beginPath();
+                                c.arc(anchorX, anchorY, 6, 0, Math.PI * 2);
+                                c.fill();
+                                c.strokeStyle = '#fff';
+                                c.lineWidth = 2;
+                                c.stroke();
+                                
+                                // Линия от NPC до точки привязки
+                                c.strokeStyle = 'rgba(59, 130, 246, 0.3)';
+                                c.lineWidth = 1;
+                                c.beginPath();
+                                c.moveTo(npc.x, npc.y);
+                                c.lineTo(anchorX, anchorY);
+                                c.stroke();
+                            }
                         }
                     } else if (npc.type === 'CITIZEN') {
                         // Citizen - use proper sprite animation like elder
@@ -6118,7 +6434,7 @@ const GameComponent: React.FC<GameProps> = ({
                         // Используем кастомное состояние анимации, если задано
                         const useMoving = npc.animationState === 'walk' ? true : (npc.animationState === 'idle' ? false : (isMovingCitizen || false));
                         const attackProgress = npc.animationState === 'attack' ? 0.5 : 1;
-                        drawHumanoid(c, npc.x, npc.y, '#d97706', 'citizen', facingLeftCitizen, useMoving, attackProgress, animTime, null, null);
+                        drawHumanoid(c, npc.x, npc.y, '#d97706', 'citizen', facingLeftCitizen, useMoving, attackProgress, animTime, null, null, undefined, undefined, undefined, npc.citizenVariant, undefined, undefined);
                         
                         // Citizen name label
                         c.save();
@@ -6152,6 +6468,22 @@ const GameComponent: React.FC<GameProps> = ({
                         c.fillText(citizenName, npc.x, npc.y - 58);
                         c.restore();
                         
+                        // Визуальная индикация выбранного NPC в онлайн редакторе карт
+                        if (isEditorMode && selectedEditorObjectId === npc.id && selectedEditorObjectType === 'NPC') {
+                            c.strokeStyle = '#3b82f6';
+                            c.lineWidth = 3;
+                            c.beginPath();
+                            c.arc(npc.x, npc.y - 30, 25, 0, Math.PI * 2);
+                            c.stroke();
+                            // Пульсирующий эффект
+                            const pulse = Math.sin(frameCountRef.current * 0.2) * 0.3 + 0.7;
+                            c.strokeStyle = `rgba(59, 130, 246, ${pulse})`;
+                            c.lineWidth = 2;
+                            c.beginPath();
+                            c.arc(npc.x, npc.y - 30, 30, 0, Math.PI * 2);
+                            c.stroke();
+                        }
+                        
                         // Визуальная индикация выбранного NPC в редакторе
                         if (isNPCEditorOpen && selectedNPCId === npc.id) {
                             c.strokeStyle = '#10b981';
@@ -6166,6 +6498,39 @@ const GameComponent: React.FC<GameProps> = ({
                             c.beginPath();
                             c.arc(npc.x, npc.y - 30, 30, 0, Math.PI * 2);
                             c.stroke();
+                            
+                            // Визуализация точки привязки и радиуса (только когда редактор открыт и NPC выбран)
+                            if (npc.anchorPoint && isNPCEditorOpen && selectedNPCId === npc.id) {
+                                const anchorRadius = npc.anchorRadius ?? 96;
+                                const anchorX = npc.anchorPoint.x;
+                                const anchorY = npc.anchorPoint.y;
+                                
+                                // Рисуем радиус (круг)
+                                c.strokeStyle = 'rgba(59, 130, 246, 0.5)';
+                                c.lineWidth = 2;
+                                c.setLineDash([5, 5]);
+                                c.beginPath();
+                                c.arc(anchorX, anchorY, anchorRadius, 0, Math.PI * 2);
+                                c.stroke();
+                                c.setLineDash([]);
+                                
+                                // Рисуем точку привязки
+                                c.fillStyle = '#3b82f6';
+                                c.beginPath();
+                                c.arc(anchorX, anchorY, 6, 0, Math.PI * 2);
+                                c.fill();
+                                c.strokeStyle = '#fff';
+                                c.lineWidth = 2;
+                                c.stroke();
+                                
+                                // Линия от NPC до точки привязки
+                                c.strokeStyle = 'rgba(59, 130, 246, 0.3)';
+                                c.lineWidth = 1;
+                                c.beginPath();
+                                c.moveTo(npc.x, npc.y);
+                                c.lineTo(anchorX, anchorY);
+                                c.stroke();
+                            }
                         }
                     } else if (npc.type === 'CHILD') {
                         // Child - use citizen texture (same as citizen but smaller scale)
@@ -6179,7 +6544,7 @@ const GameComponent: React.FC<GameProps> = ({
                         c.save();
                         c.translate(npc.x, npc.y);
                         c.scale(0.65, 0.65);
-                        drawHumanoid(c, 0, 0, '#d97706', 'citizen', facingLeft, isMoving || false, 1, frameCountRef.current, null, null);
+                        drawHumanoid(c, 0, 0, '#d97706', 'citizen', facingLeft, isMoving || false, 1, frameCountRef.current, null, null, undefined, undefined, undefined, npc.citizenVariant, undefined, undefined);
                         c.restore();
                         
                         // Child name label
@@ -6214,6 +6579,22 @@ const GameComponent: React.FC<GameProps> = ({
                         c.fillText(childName, npc.x, npc.y - 28);
                         c.restore();
                         
+                        // Визуальная индикация выбранного NPC в онлайн редакторе карт
+                        if (isEditorMode && selectedEditorObjectId === npc.id && selectedEditorObjectType === 'NPC') {
+                            c.strokeStyle = '#3b82f6';
+                            c.lineWidth = 3;
+                            c.beginPath();
+                            c.arc(npc.x, npc.y - 30, 25, 0, Math.PI * 2);
+                            c.stroke();
+                            // Пульсирующий эффект
+                            const pulse = Math.sin(frameCountRef.current * 0.2) * 0.3 + 0.7;
+                            c.strokeStyle = `rgba(59, 130, 246, ${pulse})`;
+                            c.lineWidth = 2;
+                            c.beginPath();
+                            c.arc(npc.x, npc.y - 30, 30, 0, Math.PI * 2);
+                            c.stroke();
+                        }
+                        
                         // Визуальная индикация выбранного NPC в редакторе
                         if (isNPCEditorOpen && selectedNPCId === npc.id) {
                             c.strokeStyle = '#10b981';
@@ -6228,6 +6609,39 @@ const GameComponent: React.FC<GameProps> = ({
                             c.beginPath();
                             c.arc(npc.x, npc.y - 20, 25, 0, Math.PI * 2);
                             c.stroke();
+                            
+                            // Визуализация точки привязки и радиуса (только когда редактор открыт и NPC выбран)
+                            if (npc.anchorPoint && isNPCEditorOpen && selectedNPCId === npc.id) {
+                                const anchorRadius = npc.anchorRadius ?? 96;
+                                const anchorX = npc.anchorPoint.x;
+                                const anchorY = npc.anchorPoint.y;
+                                
+                                // Рисуем радиус (круг)
+                                c.strokeStyle = 'rgba(59, 130, 246, 0.5)';
+                                c.lineWidth = 2;
+                                c.setLineDash([5, 5]);
+                                c.beginPath();
+                                c.arc(anchorX, anchorY, anchorRadius, 0, Math.PI * 2);
+                                c.stroke();
+                                c.setLineDash([]);
+                                
+                                // Рисуем точку привязки
+                                c.fillStyle = '#3b82f6';
+                                c.beginPath();
+                                c.arc(anchorX, anchorY, 6, 0, Math.PI * 2);
+                                c.fill();
+                                c.strokeStyle = '#fff';
+                                c.lineWidth = 2;
+                                c.stroke();
+                                
+                                // Линия от NPC до точки привязки
+                                c.strokeStyle = 'rgba(59, 130, 246, 0.3)';
+                                c.lineWidth = 1;
+                                c.beginPath();
+                                c.moveTo(npc.x, npc.y);
+                                c.lineTo(anchorX, anchorY);
+                                c.stroke();
+                            }
                         }
                     }
                 }
@@ -6303,7 +6717,7 @@ const GameComponent: React.FC<GameProps> = ({
                 y: merchantRef.current.y,
                 draw: (c) => {
                      c.fillStyle = 'rgba(0,0,0,0.5)'; c.beginPath(); c.ellipse(merchantRef.current.x, merchantRef.current.y, 12, 5, 0, 0, Math.PI*2); c.fill();
-                     drawHumanoid(c, merchantRef.current.x, merchantRef.current.y - 10, '#d97706', 'merchant', false, false, 1, frameCountRef.current, null, null);
+                     drawHumanoid(c, merchantRef.current.x, merchantRef.current.y - 10, '#d97706', 'merchant', false, false, 1, frameCountRef.current, null, null, undefined, 1);
                      // Merchant name label
                      c.save();
                      c.font = 'bold 10px "Press Start 2P"';
@@ -6341,13 +6755,13 @@ const GameComponent: React.FC<GameProps> = ({
         }
 
         // Тренер не отрисовывается, но механика остается
-        // if (trainerRef.current.x !== 0) {
+        // if (trainerRef.current.x > 0 || trainerRef.current.y > 0) {
         //     renderList.push({
         //         y: trainerRef.current.y,
         //         draw: (c) => {
-        //              drawHumanoid(c, trainerRef.current.x, trainerRef.current.y, '#9ca3af', 'trainer', false, false, 1, frameCountRef.current, null, null);
-        //              // Trainer name label
-        //              ...
+        //             drawHumanoid(c, trainerRef.current.x, trainerRef.current.y - 10, '#9ca3af', 'trainer', false, false, 1, frameCountRef.current, null, null, undefined, undefined, 1);
+        //             // Trainer name label
+        //             ...
         //         }
         //     });
         // }
@@ -6362,7 +6776,13 @@ const GameComponent: React.FC<GameProps> = ({
         draw: (c) => {
             const worldMouseX = (mouse.current.x / cameraZoomRef.current) + camX;
             // Anchor sprite/shadow to collider bottom; render custom shadow here (skip for warrior)
-            const groundY = player.y + player.height - 2;
+            // Player.y represents the center of the hitbox
+            // To calculate groundY (feet position), we need: player.y + (hitboxHeight / 2) - 2
+            // But since player.y is already the center, we need to add half the height to get to the bottom
+            const hitboxHeight = (player as any).customHeight ?? player.height;
+            const hitboxScale = (player as any).hitboxScale ?? 1.0;
+            const actualHitboxHeight = hitboxHeight * hitboxScale;
+            const groundY = player.y + (actualHitboxHeight / 2) - 2;
             if (player.classType !== ClassType.WARRIOR) {
                 // Optimized shadow - use simple fill instead of gradient
                 c.fillStyle = 'rgba(0,0,0,0.5)';
@@ -7143,7 +7563,8 @@ const GameComponent: React.FC<GameProps> = ({
         const hitboxHeight = baseHeight * playerScale;
         
         // Player position is at center, feet are at groundY (same as sprite rendering)
-        const groundY = player.y + player.height - 2; // Feet position (same calculation as in sprite rendering)
+        // groundY calculation: player.y is center, so feet are at player.y + (hitboxHeight / 2) - 2
+        const groundY = player.y + (hitboxHeight / 2) - 2; // Feet position (same calculation as in sprite rendering)
         const playerHitboxX = player.x - hitboxWidth / 2;
         const playerHitboxY = groundY - hitboxHeight; // Start 2 tiles above feet (going upward)
         
@@ -8742,9 +9163,9 @@ const GameComponent: React.FC<GameProps> = ({
               <button
                 onClick={() => { 
                   setSelectedCategory('terrain'); 
-                  setSelectedItem('GRASS');
+                  setSelectedItem(''); // Не выбираем автоматически
                   selectedCategoryRef.current = 'terrain';
-                  selectedItemRef.current = 'GRASS';
+                  selectedItemRef.current = '';
                 }}
                 style={{
                   padding: '10px 20px',
@@ -8761,9 +9182,9 @@ const GameComponent: React.FC<GameProps> = ({
               <button
                 onClick={() => { 
                   setSelectedCategory('decoration'); 
-                  setSelectedItem('TREE');
+                  setSelectedItem(''); // Не выбираем автоматически
                   selectedCategoryRef.current = 'decoration';
-                  selectedItemRef.current = 'TREE';
+                  selectedItemRef.current = '';
                 }}
                 style={{
                   padding: '10px 20px',
@@ -8780,9 +9201,9 @@ const GameComponent: React.FC<GameProps> = ({
               <button
                 onClick={() => { 
                   setSelectedCategory('tile'); 
-                  setSelectedItem('FLOOR');
+                  setSelectedItem(''); // Не выбираем автоматически
                   selectedCategoryRef.current = 'tile';
-                  selectedItemRef.current = 'FLOOR';
+                  selectedItemRef.current = '';
                 }}
                 style={{
                   padding: '10px 20px',
@@ -8799,11 +9220,11 @@ const GameComponent: React.FC<GameProps> = ({
               <button
                 onClick={() => { 
                   setSelectedCategory('tileTexture'); 
-                  setSelectedItem('FIELDS_TILE_01'); 
-                  setSelectedItemPath('/Images/Tiles/3/1 Tiles/FieldsTile_01.png');
+                  setSelectedItem(''); // Не выбираем автоматически
+                  setSelectedItemPath('');
                   selectedCategoryRef.current = 'tileTexture';
-                  selectedItemRef.current = 'FIELDS_TILE_01';
-                  selectedItemPathRef.current = '/Images/Tiles/3/1 Tiles/FieldsTile_01.png';
+                  selectedItemRef.current = '';
+                  selectedItemPathRef.current = '';
                 }}
                 style={{
                   padding: '10px 20px',
@@ -8820,11 +9241,11 @@ const GameComponent: React.FC<GameProps> = ({
               <button
                 onClick={() => { 
                   setSelectedCategory('ruins'); 
-                  setSelectedItem('RUINS_BLUE_GRAY_1'); 
-                  setSelectedItemPath('/Images/Tiles/1/PNG/Assets/Blue-gray_ruins1.png');
+                  setSelectedItem(''); // Не выбираем автоматически
+                  setSelectedItemPath('');
                   selectedCategoryRef.current = 'ruins';
-                  selectedItemRef.current = 'RUINS_BLUE_GRAY_1';
-                  selectedItemPathRef.current = '/Images/Tiles/1/PNG/Assets/Blue-gray_ruins1.png';
+                  selectedItemRef.current = '';
+                  selectedItemPathRef.current = '';
                 }}
                 style={{
                   padding: '10px 20px',
@@ -8841,11 +9262,11 @@ const GameComponent: React.FC<GameProps> = ({
               <button
                 onClick={() => { 
                   setSelectedCategory('objects'); 
-                  setSelectedItem('STONE_1'); 
-                  setSelectedItemPath('/Images/Tiles/3/2 Objects/2 Stone/1.png');
+                  setSelectedItem(''); // Не выбираем автоматически
+                  setSelectedItemPath('');
                   selectedCategoryRef.current = 'objects';
-                  selectedItemRef.current = 'STONE_1';
-                  selectedItemPathRef.current = '/Images/Tiles/3/2 Objects/2 Stone/1.png';
+                  selectedItemRef.current = '';
+                  selectedItemPathRef.current = '';
                 }}
                 style={{
                   padding: '10px 20px',
@@ -8862,9 +9283,9 @@ const GameComponent: React.FC<GameProps> = ({
               <button
                 onClick={() => { 
                   setSelectedCategory('npc'); 
-                  setSelectedItem('MERCHANT');
+                  setSelectedItem(''); // Не выбираем автоматически
                   selectedCategoryRef.current = 'npc';
-                  selectedItemRef.current = 'MERCHANT';
+                  selectedItemRef.current = '';
                 }}
                 style={{
                   padding: '10px 20px',
@@ -8900,13 +9321,11 @@ const GameComponent: React.FC<GameProps> = ({
               <button
                 onClick={() => { 
                   setSelectedCategory('newTextures'); 
-                  if (newTextureTypes.length > 0) {
-                    setSelectedItem(newTextureTypes[0].value); 
-                    setSelectedItemPath(newTextureTypes[0].path);
+                  setSelectedItem(''); // Не выбираем автоматически
+                  setSelectedItemPath('');
                     selectedCategoryRef.current = 'newTextures';
-                    selectedItemRef.current = newTextureTypes[0].value;
-                    selectedItemPathRef.current = newTextureTypes[0].path;
-                  }
+                  selectedItemRef.current = '';
+                  selectedItemPathRef.current = '';
                 }}
                 style={{
                   padding: '10px 20px',
@@ -9321,8 +9740,8 @@ const GameComponent: React.FC<GameProps> = ({
                   return (
                     <div style={{ padding: '20px', fontSize: '10px', color: '#aaa', textAlign: 'center' }}>
                       Нет NPC на карте. Нажмите "Разместить" для добавления
-                    </div>
-                  );
+    </div>
+  );
                 }
                 
                 return allNPCs.map(npcData => {
@@ -9359,7 +9778,13 @@ const GameComponent: React.FC<GameProps> = ({
                   return (
                     <div
                       key={npc.id}
-                      onClick={() => setSelectedNPCId(npc.id)}
+                      onClick={() => {
+                        setSelectedNPCId(npc.id);
+                        // Автоматически выбираем объект для редактора хитбоксов
+                        if (npc.id !== 'trainer_static') {
+                          setSelectedHitboxObject({ id: npc.id, type: 'NPC' });
+                        }
+                      }}
                       style={{
                         padding: '10px',
                         marginBottom: '5px',
@@ -9473,6 +9898,498 @@ const GameComponent: React.FC<GameProps> = ({
                         </div>
                       )}
                     </div>
+                  </div>
+                  
+                  {/* Выбор варианта текстуры */}
+                  <div style={{ marginTop: '15px', border: '2px solid #10b981', padding: '10px', borderRadius: '5px' }}>
+                    <div style={{ fontSize: '10px', marginBottom: '8px', color: '#10b981' }}>ВАРИАНТ ТЕКСТУРЫ:</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '5px' }}>
+                      {[1, 2, 3].map((variant) => {
+                        let variantName = '';
+                        if (npc.type === 'MERCHANT') variantName = `Trader_${variant}`;
+                        else if (npc.type === 'TRAINER') {
+                          if (variant === 1) variantName = 'Fighter';
+                          else if (variant === 2) variantName = 'Samurai';
+                          else variantName = 'Shinobi';
+                        }
+                        else if (npc.type === 'CITIZEN') variantName = `Warrior_${variant}`;
+                        else if (npc.type === 'ELDER') variantName = `Satyr_${variant}`;
+                        else if (npc.type === 'CHILD') variantName = `Warrior_${variant}`;
+                        else if (npc.type === 'HOMELESS') variantName = `Homeless_${variant}`;
+                        else variantName = `Вариант ${variant}`;
+                        
+                        const isSelected = 
+                          (npc.type === 'MERCHANT' && npc.traderVariant === variant) ||
+                          (npc.type === 'TRAINER' && npc.trainerVariant === variant) ||
+                          (npc.type === 'CITIZEN' && npc.citizenVariant === variant) ||
+                          (npc.type === 'ELDER' && npc.elderVariant === variant) ||
+                          (npc.type === 'CHILD' && npc.citizenVariant === variant) ||
+                          ((npc.type as string) === 'HOMELESS' && npc.homelessVariant === variant);
+                        
+                        return (
+                          <button
+                            key={variant}
+                            onClick={() => {
+                              if (selectedNPCId === 'trainer_static') return;
+                              const npcIndex = npcsRef.current.findIndex(n => n.id === selectedNPCId);
+                              if (npcIndex !== -1) {
+                                const currentNpc = npcsRef.current[npcIndex];
+                                if (currentNpc.type === 'MERCHANT') {
+                                  currentNpc.traderVariant = variant as 1 | 2 | 3;
+                                } else if (currentNpc.type === 'TRAINER') {
+                                  currentNpc.trainerVariant = variant as 1 | 2 | 3;
+                                } else if (currentNpc.type === 'CITIZEN' || currentNpc.type === 'CHILD') {
+                                  currentNpc.citizenVariant = variant as 1 | 2 | 3;
+                                } else if (currentNpc.type === 'ELDER') {
+                                  currentNpc.elderVariant = variant as 1 | 2 | 3;
+                                } else if ((currentNpc.type as string) === 'HOMELESS') {
+                                  currentNpc.homelessVariant = variant as 1 | 2 | 3;
+                                }
+                                scheduleEditorSave();
+                                // Принудительное обновление компонента для отображения изменений
+                                setSelectedNPCId(null);
+                                setTimeout(() => setSelectedNPCId(selectedNPCId), 0);
+                              }
+                            }}
+                            style={{
+                              padding: '8px',
+                              backgroundColor: isSelected ? '#10b981' : '#222',
+                              color: isSelected ? '#000' : '#fff',
+                              border: `2px solid ${isSelected ? '#fff' : '#555'}`,
+                              borderRadius: '5px',
+                              cursor: 'pointer',
+                              fontSize: '8px',
+                              fontWeight: isSelected ? 'bold' : 'normal'
+                            }}
+                          >
+                            {variantName}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  {/* Привязка NPC к точке */}
+                  <div style={{ marginTop: '15px', border: '2px solid #10b981', padding: '10px', borderRadius: '5px' }}>
+                    <div style={{ fontSize: '10px', marginBottom: '8px', color: '#10b981' }}>ПРИВЯЗКА К ТОЧКЕ:</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {npc.anchorPoint ? (
+                        <>
+                          <div style={{ fontSize: '9px', color: '#aaa' }}>
+                            Точка привязки: ({Math.round(npc.anchorPoint.x)}, {Math.round(npc.anchorPoint.y)})
+                          </div>
+                          <div style={{ fontSize: '9px', color: '#aaa' }}>
+                            Радиус: {npc.anchorRadius ?? 96} пикселей ({Math.round((npc.anchorRadius ?? 96) / 32)} блоков)
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px' }}>
+                            <button
+                              onClick={() => {
+                                if (selectedNPCId === 'trainer_static') return;
+                                const npcIndex = npcsRef.current.findIndex(n => n.id === selectedNPCId);
+                                if (npcIndex !== -1) {
+                                  // Обновить точку привязки на текущую позицию NPC
+                                  npcsRef.current[npcIndex].anchorPoint = { x: npc.x, y: npc.y };
+                                  scheduleEditorSave();
+                                  setSelectedNPCId(null);
+                                  setTimeout(() => setSelectedNPCId(selectedNPCId), 0);
+                                }
+                              }}
+                              style={{
+                                padding: '6px',
+                                backgroundColor: '#3b82f6',
+                                color: '#fff',
+                                border: '1px solid #2563eb',
+                                borderRadius: '3px',
+                                cursor: 'pointer',
+                                fontSize: '8px'
+                              }}
+                            >
+                              Обновить точку
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (selectedNPCId === 'trainer_static') return;
+                                const npcIndex = npcsRef.current.findIndex(n => n.id === selectedNPCId);
+                                if (npcIndex !== -1) {
+                                  // Удалить точку привязки
+                                  delete npcsRef.current[npcIndex].anchorPoint;
+                                  delete npcsRef.current[npcIndex].anchorRadius;
+                                  scheduleEditorSave();
+                                  setSelectedNPCId(null);
+                                  setTimeout(() => setSelectedNPCId(selectedNPCId), 0);
+                                }
+                              }}
+                              style={{
+                                padding: '6px',
+                                backgroundColor: '#ef4444',
+                                color: '#fff',
+                                border: '1px solid #dc2626',
+                                borderRadius: '3px',
+                                cursor: 'pointer',
+                                fontSize: '8px'
+                              }}
+                            >
+                              Удалить
+                            </button>
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '8px', display: 'block', marginBottom: '3px' }}>Радиус (в блоках):</label>
+                            <input
+                              type="number"
+                              min="1"
+                              max="10"
+                              value={Math.round((npc.anchorRadius ?? 96) / 32)}
+                              onChange={(e) => {
+                                if (selectedNPCId === 'trainer_static') return;
+                                const npcIndex = npcsRef.current.findIndex(n => n.id === selectedNPCId);
+                                if (npcIndex !== -1) {
+                                  const blocks = Math.max(1, Math.min(10, parseInt(e.target.value) || 3));
+                                  npcsRef.current[npcIndex].anchorRadius = blocks * 32;
+                                  scheduleEditorSave();
+                                  setSelectedNPCId(null);
+                                  setTimeout(() => setSelectedNPCId(selectedNPCId), 0);
+                                }
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '5px',
+                                backgroundColor: '#222',
+                                color: '#fff',
+                                border: '1px solid #555',
+                                borderRadius: '3px',
+                                fontSize: '9px'
+                              }}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (selectedNPCId === 'trainer_static') return;
+                            const npcIndex = npcsRef.current.findIndex(n => n.id === selectedNPCId);
+                            if (npcIndex !== -1) {
+                              // Установить точку привязки на текущую позицию NPC
+                              npcsRef.current[npcIndex].anchorPoint = { x: npc.x, y: npc.y };
+                              npcsRef.current[npcIndex].anchorRadius = 96; // 3 блока по умолчанию
+                              scheduleEditorSave();
+                              setSelectedNPCId(null);
+                              setTimeout(() => setSelectedNPCId(selectedNPCId), 0);
+                            }
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '8px',
+                            backgroundColor: '#10b981',
+                            color: '#000',
+                            border: '2px solid #fff',
+                            borderRadius: '5px',
+                            cursor: 'pointer',
+                            fontSize: '9px',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          Установить точку привязки
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Редактор хитбоксов */}
+                  <div style={{ marginTop: '15px', border: '2px solid #10b981', padding: '10px', borderRadius: '5px' }}>
+                    <div style={{ fontSize: '10px', marginBottom: '8px', color: '#10b981' }}>РЕДАКТОР ХИТБОКСОВ:</div>
+                    {selectedNPCId && selectedNPCId !== 'trainer_static' && (() => {
+                      const npcForHitbox = npcsRef.current.find(n => n.id === selectedNPCId);
+                      if (!npcForHitbox) return null;
+                      
+                      const npcHitbox = getNPCHitboxSize(npcForHitbox.type);
+                      const defaultWidth = npcForHitbox.type === 'MERCHANT' ? npcHitbox.width : npcHitbox.width - (TILE_SIZE * 2);
+                      const defaultHeight = TILE_SIZE * 2;
+                      
+                      const currentWidth = npcForHitbox.customWidth ?? defaultWidth;
+                      const currentHeight = npcForHitbox.customHeight ?? defaultHeight;
+                      const currentScale = npcForHitbox.hitboxScale ?? 1.0;
+                      
+                      // Collision zone values
+                      const currentOffsetX = npcForHitbox.collisionOffsetX ?? 0;
+                      const currentOffsetY = npcForHitbox.collisionOffsetY ?? 0;
+                      const currentCollisionWidth = npcForHitbox.collisionWidth ?? defaultWidth;
+                      const currentCollisionHeight = npcForHitbox.collisionHeight ?? defaultHeight;
+                      const currentCollisionScale = npcForHitbox.collisionScale ?? 1.0;
+                      
+                      const triggerDebouncedSave = () => {
+                        if (hitboxUpdateTimeoutRef.current) {
+                          clearTimeout(hitboxUpdateTimeoutRef.current);
+                        }
+                        hitboxUpdateTimeoutRef.current = window.setTimeout(() => {
+                          scheduleEditorSave();
+                          hitboxUpdateTimeoutRef.current = null;
+                        }, 500);
+                      };
+                      
+                      return (
+                        <div>
+                          {/* Редактор хитбокса */}
+                          <div style={{ marginBottom: '15px', borderTop: '1px solid #555', paddingTop: '10px' }}>
+                            <div style={{ fontSize: '9px', marginBottom: '8px', color: '#aaa' }}>📐 Хитбокс:</div>
+                            
+                            <div style={{ marginBottom: '8px' }}>
+                              <label style={{ fontSize: '8px', display: 'block', marginBottom: '3px' }}>Ширина: {Math.round(currentWidth * currentScale)}px</label>
+                              <input
+                                type="range"
+                                min="8"
+                                max="128"
+                                step="1"
+                                value={currentWidth}
+                                onChange={(e) => {
+                                  const newWidth = parseInt(e.target.value);
+                                  npcForHitbox.customWidth = newWidth;
+                                  setHitboxEditorUpdateTrigger(prev => prev + 1);
+                                  triggerDebouncedSave();
+                                }}
+                                onMouseUp={() => {
+                                  if (hitboxUpdateTimeoutRef.current) {
+                                    clearTimeout(hitboxUpdateTimeoutRef.current);
+                                    hitboxUpdateTimeoutRef.current = null;
+                                  }
+                                  scheduleEditorSave();
+                                }}
+                                style={{ width: '100%' }}
+                              />
+                            </div>
+                            
+                            <div style={{ marginBottom: '8px' }}>
+                              <label style={{ fontSize: '8px', display: 'block', marginBottom: '3px' }}>Высота: {Math.round(currentHeight * currentScale)}px</label>
+                              <input
+                                type="range"
+                                min="8"
+                                max="128"
+                                step="1"
+                                value={currentHeight}
+                                onChange={(e) => {
+                                  const newHeight = parseInt(e.target.value);
+                                  npcForHitbox.customHeight = newHeight;
+                                  setHitboxEditorUpdateTrigger(prev => prev + 1);
+                                  triggerDebouncedSave();
+                                }}
+                                onMouseUp={() => {
+                                  if (hitboxUpdateTimeoutRef.current) {
+                                    clearTimeout(hitboxUpdateTimeoutRef.current);
+                                    hitboxUpdateTimeoutRef.current = null;
+                                  }
+                                  scheduleEditorSave();
+                                }}
+                                style={{ width: '100%' }}
+                              />
+                            </div>
+                            
+                            <div style={{ marginBottom: '8px' }}>
+                              <label style={{ fontSize: '8px', display: 'block', marginBottom: '3px' }}>Масштаб: {currentScale.toFixed(2)}x</label>
+                              <input
+                                type="range"
+                                min="0.25"
+                                max="3.0"
+                                step="0.05"
+                                value={currentScale}
+                                onChange={(e) => {
+                                  const newScale = parseFloat(e.target.value);
+                                  npcForHitbox.hitboxScale = newScale;
+                                  setHitboxEditorUpdateTrigger(prev => prev + 1);
+                                  triggerDebouncedSave();
+                                }}
+                                onMouseUp={() => {
+                                  if (hitboxUpdateTimeoutRef.current) {
+                                    clearTimeout(hitboxUpdateTimeoutRef.current);
+                                    hitboxUpdateTimeoutRef.current = null;
+                                  }
+                                  scheduleEditorSave();
+                                }}
+                                style={{ width: '100%' }}
+                              />
+                            </div>
+                            
+                            <button
+                              onClick={() => {
+                                delete npcForHitbox.customWidth;
+                                delete npcForHitbox.customHeight;
+                                delete npcForHitbox.hitboxScale;
+                                setHitboxEditorUpdateTrigger(prev => prev + 1);
+                                scheduleEditorSave();
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '6px',
+                                backgroundColor: '#f59e0b',
+                                color: '#fff',
+                                border: '1px solid #d97706',
+                                borderRadius: '3px',
+                                cursor: 'pointer',
+                                fontSize: '8px',
+                                fontWeight: 'bold',
+                                marginTop: '5px'
+                              }}
+                            >
+                              🔄 Сбросить
+                            </button>
+                          </div>
+                          
+                          {/* Редактор непроходимой зоны */}
+                          <div style={{ borderTop: '1px solid #555', paddingTop: '10px' }}>
+                            <div style={{ fontSize: '9px', marginBottom: '8px', color: '#aaa' }}>🚧 Непроходимая зона:</div>
+                            
+                            <div style={{ marginBottom: '8px' }}>
+                              <label style={{ fontSize: '8px', display: 'block', marginBottom: '3px' }}>Смещение X: {currentOffsetX}px</label>
+                              <input
+                                type="range"
+                                min="-64"
+                                max="64"
+                                step="1"
+                                value={currentOffsetX}
+                                onChange={(e) => {
+                                  const newOffsetX = parseInt(e.target.value);
+                                  npcForHitbox.collisionOffsetX = newOffsetX;
+                                  setHitboxEditorUpdateTrigger(prev => prev + 1);
+                                  triggerDebouncedSave();
+                                }}
+                                onMouseUp={() => {
+                                  if (hitboxUpdateTimeoutRef.current) {
+                                    clearTimeout(hitboxUpdateTimeoutRef.current);
+                                    hitboxUpdateTimeoutRef.current = null;
+                                  }
+                                  scheduleEditorSave();
+                                }}
+                                style={{ width: '100%' }}
+                              />
+                            </div>
+                            
+                            <div style={{ marginBottom: '8px' }}>
+                              <label style={{ fontSize: '8px', display: 'block', marginBottom: '3px' }}>Смещение Y: {currentOffsetY}px</label>
+                              <input
+                                type="range"
+                                min="-64"
+                                max="64"
+                                step="1"
+                                value={currentOffsetY}
+                                onChange={(e) => {
+                                  const newOffsetY = parseInt(e.target.value);
+                                  npcForHitbox.collisionOffsetY = newOffsetY;
+                                  setHitboxEditorUpdateTrigger(prev => prev + 1);
+                                  triggerDebouncedSave();
+                                }}
+                                onMouseUp={() => {
+                                  if (hitboxUpdateTimeoutRef.current) {
+                                    clearTimeout(hitboxUpdateTimeoutRef.current);
+                                    hitboxUpdateTimeoutRef.current = null;
+                                  }
+                                  scheduleEditorSave();
+                                }}
+                                style={{ width: '100%' }}
+                              />
+                            </div>
+                            
+                            <div style={{ marginBottom: '8px' }}>
+                              <label style={{ fontSize: '8px', display: 'block', marginBottom: '3px' }}>Ширина: {Math.round(currentCollisionWidth * currentCollisionScale)}px</label>
+                              <input
+                                type="range"
+                                min="8"
+                                max="128"
+                                step="1"
+                                value={currentCollisionWidth}
+                                onChange={(e) => {
+                                  const newWidth = parseInt(e.target.value);
+                                  npcForHitbox.collisionWidth = newWidth;
+                                  setHitboxEditorUpdateTrigger(prev => prev + 1);
+                                  triggerDebouncedSave();
+                                }}
+                                onMouseUp={() => {
+                                  if (hitboxUpdateTimeoutRef.current) {
+                                    clearTimeout(hitboxUpdateTimeoutRef.current);
+                                    hitboxUpdateTimeoutRef.current = null;
+                                  }
+                                  scheduleEditorSave();
+                                }}
+                                style={{ width: '100%' }}
+                              />
+                            </div>
+                            
+                            <div style={{ marginBottom: '8px' }}>
+                              <label style={{ fontSize: '8px', display: 'block', marginBottom: '3px' }}>Высота: {Math.round(currentCollisionHeight * currentCollisionScale)}px</label>
+                              <input
+                                type="range"
+                                min="8"
+                                max="128"
+                                step="1"
+                                value={currentCollisionHeight}
+                                onChange={(e) => {
+                                  const newHeight = parseInt(e.target.value);
+                                  npcForHitbox.collisionHeight = newHeight;
+                                  setHitboxEditorUpdateTrigger(prev => prev + 1);
+                                  triggerDebouncedSave();
+                                }}
+                                onMouseUp={() => {
+                                  if (hitboxUpdateTimeoutRef.current) {
+                                    clearTimeout(hitboxUpdateTimeoutRef.current);
+                                    hitboxUpdateTimeoutRef.current = null;
+                                  }
+                                  scheduleEditorSave();
+                                }}
+                                style={{ width: '100%' }}
+                              />
+                            </div>
+                            
+                            <div style={{ marginBottom: '8px' }}>
+                              <label style={{ fontSize: '8px', display: 'block', marginBottom: '3px' }}>Масштаб: {currentCollisionScale.toFixed(2)}x</label>
+                              <input
+                                type="range"
+                                min="0.25"
+                                max="3.0"
+                                step="0.05"
+                                value={currentCollisionScale}
+                                onChange={(e) => {
+                                  const newScale = parseFloat(e.target.value);
+                                  npcForHitbox.collisionScale = newScale;
+                                  setHitboxEditorUpdateTrigger(prev => prev + 1);
+                                  triggerDebouncedSave();
+                                }}
+                                onMouseUp={() => {
+                                  if (hitboxUpdateTimeoutRef.current) {
+                                    clearTimeout(hitboxUpdateTimeoutRef.current);
+                                    hitboxUpdateTimeoutRef.current = null;
+                                  }
+                                  scheduleEditorSave();
+                                }}
+                                style={{ width: '100%' }}
+                              />
+                            </div>
+                            
+                            <button
+                              onClick={() => {
+                                delete npcForHitbox.collisionOffsetX;
+                                delete npcForHitbox.collisionOffsetY;
+                                delete npcForHitbox.collisionWidth;
+                                delete npcForHitbox.collisionHeight;
+                                delete npcForHitbox.collisionScale;
+                                setHitboxEditorUpdateTrigger(prev => prev + 1);
+                                scheduleEditorSave();
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '6px',
+                                backgroundColor: '#f59e0b',
+                                color: '#fff',
+                                border: '1px solid #d97706',
+                                borderRadius: '3px',
+                                cursor: 'pointer',
+                                fontSize: '8px',
+                                fontWeight: 'bold',
+                                marginTop: '5px'
+                              }}
+                            >
+                              🔄 Сбросить
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                   
                   {/* Редактор текстуры */}

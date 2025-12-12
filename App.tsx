@@ -4,6 +4,7 @@ import { Game } from './components/Game';
 import { MainMenu } from './components/MainMenu';
 import { HUD } from './components/UI/HUD';
 import MapEditor from './components/MapEditor';
+import TransitionScreen from './components/TransitionScreen';
 import { GameState, ClassType, Player, Item, ItemType, Merchant, Language, KeyBindings, GlobalSaveData } from './types';
 import { CLASS_STATS, DEFAULT_KEYBINDINGS, TRANSLATIONS, VIEWPORT_WIDTH, VIEWPORT_HEIGHT } from './constants';
 import { getPlayerHitboxSize } from './utils/gameUtils';
@@ -121,6 +122,8 @@ const App: React.FC = () => {
 
   const startGame = useCallback((cls: ClassType) => {
     setSelectedClass(cls);
+    
+    // Инициализируем игровое состояние сразу, чтобы игра загружалась в фоне
     const playerHitbox = getPlayerHitboxSize(cls);
     const initialPlayer: Player = {
         id: 'player',
@@ -151,12 +154,19 @@ const App: React.FC = () => {
     };
     setPlayerUI(initialPlayer);
     setGameLog([t.welcome]);
-    setGameState(GameState.PLAYING);
     setIsInventoryOpen(false);
     setIsShopOpen(false);
     setIsSkillsOpen(false);
     setIsTrainerOpen(false);
+    
+    // Переход в состояние перехода - игра будет загружаться в фоне
+    setGameState(GameState.TRANSITION);
   }, [t.welcome]);
+
+  // Завершение перехода - просто переключаем состояние, игра уже загружена
+  const completeTransition = useCallback(() => {
+    setGameState(GameState.PLAYING);
+  }, []);
 
   const handleGameOver = useCallback((score: number) => {
     // Transfer unspent run gold to global balance
@@ -466,17 +476,30 @@ const App: React.FC = () => {
         />
       )}
 
+      {gameState === GameState.TRANSITION && (
+        <TransitionScreen 
+          onComplete={completeTransition}
+          selectedClass={selectedClass}
+          language={language}
+        />
+      )}
+
       {gameState === GameState.MAP_EDITOR && (
         <MapEditor onClose={() => setGameState(GameState.MENU)} />
       )}
       
-      {(gameState === GameState.PLAYING || gameState === GameState.PAUSED) && (
+      {/* Игра рендерится всегда, когда есть playerUI - во время перехода она скрыта TransitionScreen */}
+      {(gameState === GameState.TRANSITION || gameState === GameState.PLAYING || gameState === GameState.PAUSED) && playerUI && (
         <div 
           className="relative shadow-2xl bg-black origin-center"
           style={{ 
               width: resolution.width, 
               height: resolution.height,
-              transform: `scale(${scale})` 
+              transform: `scale(${scale})`,
+              opacity: 1,
+              pointerEvents: gameState === GameState.TRANSITION ? 'none' : 'auto',
+              position: 'relative',
+              zIndex: 1
           }}
         >
             <Game 

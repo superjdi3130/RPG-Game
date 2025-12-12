@@ -18,24 +18,89 @@ export interface SpriteMap {
   homeless_walk: HTMLImageElement | null;
   homeless_attack: HTMLImageElement | null;
   homeless_hurt: HTMLImageElement | null;
+  // Homeless variants
+  homeless_1_idle: HTMLImageElement | null;
+  homeless_1_walk: HTMLImageElement | null;
+  homeless_1_attack: HTMLImageElement | null;
+  homeless_1_hurt: HTMLImageElement | null;
+  homeless_2_idle: HTMLImageElement | null;
+  homeless_2_walk: HTMLImageElement | null;
+  homeless_2_attack: HTMLImageElement | null;
+  homeless_2_hurt: HTMLImageElement | null;
+  homeless_3_idle: HTMLImageElement | null;
+  homeless_3_walk: HTMLImageElement | null;
+  homeless_3_attack: HTMLImageElement | null;
+  homeless_3_hurt: HTMLImageElement | null;
   elder_idle: HTMLImageElement | null;
   elder_walk: HTMLImageElement | null;
   elder_attack: HTMLImageElement | null;
   elder_hurt: HTMLImageElement | null;
+  // Elder variants
+  elder_1_idle: HTMLImageElement | null;
+  elder_1_walk: HTMLImageElement | null;
+  elder_1_attack: HTMLImageElement | null;
+  elder_1_hurt: HTMLImageElement | null;
+  elder_2_idle: HTMLImageElement | null;
+  elder_2_walk: HTMLImageElement | null;
+  elder_2_attack: HTMLImageElement | null;
+  elder_2_hurt: HTMLImageElement | null;
+  elder_3_idle: HTMLImageElement | null;
+  elder_3_walk: HTMLImageElement | null;
+  elder_3_attack: HTMLImageElement | null;
+  elder_3_hurt: HTMLImageElement | null;
   citizen_idle: HTMLImageElement | null;
   citizen_walk: HTMLImageElement | null;
   citizen_attack: HTMLImageElement | null;
   citizen_hurt: HTMLImageElement | null;
+  // Citizen variants
+  citizen_1_idle: HTMLImageElement | null;
+  citizen_1_walk: HTMLImageElement | null;
+  citizen_1_attack: HTMLImageElement | null;
+  citizen_1_hurt: HTMLImageElement | null;
+  citizen_2_idle: HTMLImageElement | null;
+  citizen_2_walk: HTMLImageElement | null;
+  citizen_2_attack: HTMLImageElement | null;
+  citizen_2_hurt: HTMLImageElement | null;
+  citizen_3_idle: HTMLImageElement | null;
+  citizen_3_walk: HTMLImageElement | null;
+  citizen_3_attack: HTMLImageElement | null;
+  citizen_3_hurt: HTMLImageElement | null;
   trainer_idle: HTMLImageElement | null;
   trainer_walk: HTMLImageElement | null;
   trainer_attack: HTMLImageElement | null;
   trainer_hurt: HTMLImageElement | null;
+  // Trainer variants
+  trainer_1_idle: HTMLImageElement | null;
+  trainer_1_walk: HTMLImageElement | null;
+  trainer_1_attack: HTMLImageElement | null;
+  trainer_1_hurt: HTMLImageElement | null;
+  trainer_2_idle: HTMLImageElement | null;
+  trainer_2_walk: HTMLImageElement | null;
+  trainer_2_attack: HTMLImageElement | null;
+  trainer_2_hurt: HTMLImageElement | null;
+  trainer_3_idle: HTMLImageElement | null;
+  trainer_3_walk: HTMLImageElement | null;
+  trainer_3_attack: HTMLImageElement | null;
+  trainer_3_hurt: HTMLImageElement | null;
   mage: HTMLImageElement | null;
   merchant: HTMLImageElement | null;
   merchant_idle: HTMLImageElement | null;
   merchant_walk: HTMLImageElement | null;
   merchant_attack: HTMLImageElement | null;
   merchant_hurt: HTMLImageElement | null;
+  // Merchant variants
+  merchant_1_idle: HTMLImageElement | null;
+  merchant_1_walk: HTMLImageElement | null;
+  merchant_1_attack: HTMLImageElement | null;
+  merchant_1_hurt: HTMLImageElement | null;
+  merchant_2_idle: HTMLImageElement | null;
+  merchant_2_walk: HTMLImageElement | null;
+  merchant_2_attack: HTMLImageElement | null;
+  merchant_2_hurt: HTMLImageElement | null;
+  merchant_3_idle: HTMLImageElement | null;
+  merchant_3_walk: HTMLImageElement | null;
+  merchant_3_attack: HTMLImageElement | null;
+  merchant_3_hurt: HTMLImageElement | null;
   
   // Tiles / Terrain
   tile_grass: HTMLImageElement | null;
@@ -120,28 +185,93 @@ class ImageLoader {
   warrior_walk: null,
   warrior_attack: null,
   warrior_hurt: null,
-  homeless_idle: null,
-  homeless_walk: null,
-  homeless_attack: null,
-  homeless_hurt: null,
-  elder_idle: null,
-  elder_walk: null,
-  elder_attack: null,
-  elder_hurt: null,
+    homeless_idle: null,
+    homeless_walk: null,
+    homeless_attack: null,
+    homeless_hurt: null,
+    // Homeless variants
+    homeless_1_idle: null,
+    homeless_1_walk: null,
+    homeless_1_attack: null,
+    homeless_1_hurt: null,
+    homeless_2_idle: null,
+    homeless_2_walk: null,
+    homeless_2_attack: null,
+    homeless_2_hurt: null,
+    homeless_3_idle: null,
+    homeless_3_walk: null,
+    homeless_3_attack: null,
+    homeless_3_hurt: null,
+    elder_idle: null,
+    elder_walk: null,
+    elder_attack: null,
+    elder_hurt: null,
+    // Elder variants
+    elder_1_idle: null,
+    elder_1_walk: null,
+    elder_1_attack: null,
+    elder_1_hurt: null,
+    elder_2_idle: null,
+    elder_2_walk: null,
+    elder_2_attack: null,
+    elder_2_hurt: null,
+    elder_3_idle: null,
+    elder_3_walk: null,
+    elder_3_attack: null,
+    elder_3_hurt: null,
     citizen_idle: null,
     citizen_walk: null,
     citizen_attack: null,
     citizen_hurt: null,
+    // Citizen variants
+    citizen_1_idle: null,
+    citizen_1_walk: null,
+    citizen_1_attack: null,
+    citizen_1_hurt: null,
+    citizen_2_idle: null,
+    citizen_2_walk: null,
+    citizen_2_attack: null,
+    citizen_2_hurt: null,
+    citizen_3_idle: null,
+    citizen_3_walk: null,
+    citizen_3_attack: null,
+    citizen_3_hurt: null,
     trainer_idle: null,
     trainer_walk: null,
     trainer_attack: null,
     trainer_hurt: null,
+    // Trainer variants
+    trainer_1_idle: null,
+    trainer_1_walk: null,
+    trainer_1_attack: null,
+    trainer_1_hurt: null,
+    trainer_2_idle: null,
+    trainer_2_walk: null,
+    trainer_2_attack: null,
+    trainer_2_hurt: null,
+    trainer_3_idle: null,
+    trainer_3_walk: null,
+    trainer_3_attack: null,
+    trainer_3_hurt: null,
     mage: null,
     merchant: null,
     merchant_idle: null,
     merchant_walk: null,
     merchant_attack: null,
     merchant_hurt: null,
+    // Merchant variants
+    merchant_1_idle: null,
+    merchant_1_walk: null,
+    merchant_1_attack: null,
+    merchant_1_hurt: null,
+    merchant_2_idle: null,
+    merchant_2_walk: null,
+    merchant_2_attack: null,
+    merchant_2_hurt: null,
+    merchant_3_idle: null,
+    merchant_3_walk: null,
+    merchant_3_attack: null,
+    merchant_3_hurt: null,
     
     // Tiles
     tile_grass: null,
@@ -246,24 +376,99 @@ class ImageLoader {
       homeless_walk: new URL('../Images/HEROBOMZH/Homeless_1/Walk.png', import.meta.url).href,
       homeless_attack: new URL('../Images/HEROBOMZH/Homeless_1/Attack_1.png', import.meta.url).href,
       homeless_hurt: new URL('../Images/HEROBOMZH/Homeless_1/Hurt.png', import.meta.url).href,
+      // Homeless variant 1
+      homeless_1_idle: new URL('../Images/HEROBOMZH/Homeless_1/Idle.png', import.meta.url).href,
+      homeless_1_walk: new URL('../Images/HEROBOMZH/Homeless_1/Walk.png', import.meta.url).href,
+      homeless_1_attack: new URL('../Images/HEROBOMZH/Homeless_1/Attack_1.png', import.meta.url).href,
+      homeless_1_hurt: new URL('../Images/HEROBOMZH/Homeless_1/Hurt.png', import.meta.url).href,
+      // Homeless variant 2
+      homeless_2_idle: new URL('../Images/HEROBOMZH/Homeless_2/Idle.png', import.meta.url).href,
+      homeless_2_walk: new URL('../Images/HEROBOMZH/Homeless_2/Walk.png', import.meta.url).href,
+      homeless_2_attack: new URL('../Images/HEROBOMZH/Homeless_2/Attack_1.png', import.meta.url).href,
+      homeless_2_hurt: new URL('../Images/HEROBOMZH/Homeless_2/Hurt.png', import.meta.url).href,
+      // Homeless variant 3
+      homeless_3_idle: new URL('../Images/HEROBOMZH/Homeless_3/Idle.png', import.meta.url).href,
+      homeless_3_walk: new URL('../Images/HEROBOMZH/Homeless_3/Walk.png', import.meta.url).href,
+      homeless_3_attack: new URL('../Images/HEROBOMZH/Homeless_3/Attack_1.png', import.meta.url).href,
+      homeless_3_hurt: new URL('../Images/HEROBOMZH/Homeless_3/Hurt.png', import.meta.url).href,
       elder_idle: new URL('../Images/starets/Satyr_1/Idle.png', import.meta.url).href,
       elder_walk: new URL('../Images/starets/Satyr_1/Walk.png', import.meta.url).href,
       elder_attack: new URL('../Images/starets/Satyr_1/Attack.png', import.meta.url).href,
       elder_hurt: new URL('../Images/starets/Satyr_1/Hurt.png', import.meta.url).href,
+      // Elder variant 1
+      elder_1_idle: new URL('../Images/starets/Satyr_1/Idle.png', import.meta.url).href,
+      elder_1_walk: new URL('../Images/starets/Satyr_1/Walk.png', import.meta.url).href,
+      elder_1_attack: new URL('../Images/starets/Satyr_1/Attack.png', import.meta.url).href,
+      elder_1_hurt: new URL('../Images/starets/Satyr_1/Hurt.png', import.meta.url).href,
+      // Elder variant 2
+      elder_2_idle: new URL('../Images/starets/Satyr_2/Idle.png', import.meta.url).href,
+      elder_2_walk: new URL('../Images/starets/Satyr_2/Walk.png', import.meta.url).href,
+      elder_2_attack: new URL('../Images/starets/Satyr_2/Attack.png', import.meta.url).href,
+      elder_2_hurt: new URL('../Images/starets/Satyr_2/Hurt.png', import.meta.url).href,
+      // Elder variant 3
+      elder_3_idle: new URL('../Images/starets/Satyr_3/Idle.png', import.meta.url).href,
+      elder_3_walk: new URL('../Images/starets/Satyr_3/Walk.png', import.meta.url).href,
+      elder_3_attack: new URL('../Images/starets/Satyr_3/Attack.png', import.meta.url).href,
+      elder_3_hurt: new URL('../Images/starets/Satyr_3/Hurt.png', import.meta.url).href,
       citizen_idle: new URL('../Images/Gorozhanin/Warrior_1/Idle.png', import.meta.url).href,
       citizen_walk: new URL('../Images/Gorozhanin/Warrior_1/Walk.png', import.meta.url).href,
       citizen_attack: new URL('../Images/Gorozhanin/Warrior_1/Attack_1.png', import.meta.url).href,
       citizen_hurt: new URL('../Images/Gorozhanin/Warrior_1/Hurt.png', import.meta.url).href,
-      trainer_idle: new URL('../Images/master/Knight_1/Idle.png', import.meta.url).href,
-      trainer_walk: new URL('../Images/master/Knight_1/Walk.png', import.meta.url).href,
-      trainer_attack: new URL('../Images/master/Knight_1/Attack 1.png', import.meta.url).href,
-      trainer_hurt: new URL('../Images/master/Knight_1/Hurt.png', import.meta.url).href,
+      // Citizen variant 1
+      citizen_1_idle: new URL('../Images/Gorozhanin/Warrior_1/Idle.png', import.meta.url).href,
+      citizen_1_walk: new URL('../Images/Gorozhanin/Warrior_1/Walk.png', import.meta.url).href,
+      citizen_1_attack: new URL('../Images/Gorozhanin/Warrior_1/Attack_1.png', import.meta.url).href,
+      citizen_1_hurt: new URL('../Images/Gorozhanin/Warrior_1/Hurt.png', import.meta.url).href,
+      // Citizen variant 2
+      citizen_2_idle: new URL('../Images/Gorozhanin/Warrior_2/Idle.png', import.meta.url).href,
+      citizen_2_walk: new URL('../Images/Gorozhanin/Warrior_2/Walk.png', import.meta.url).href,
+      citizen_2_attack: new URL('../Images/Gorozhanin/Warrior_2/Attack_1.png', import.meta.url).href,
+      citizen_2_hurt: new URL('../Images/Gorozhanin/Warrior_2/Hurt.png', import.meta.url).href,
+      // Citizen variant 3
+      citizen_3_idle: new URL('../Images/Gorozhanin/Warrior_3/Idle.png', import.meta.url).href,
+      citizen_3_walk: new URL('../Images/Gorozhanin/Warrior_3/Walk.png', import.meta.url).href,
+      citizen_3_attack: new URL('../Images/Gorozhanin/Warrior_3/Attack_1.png', import.meta.url).href,
+      citizen_3_hurt: new URL('../Images/Gorozhanin/Warrior_3/Hurt.png', import.meta.url).href,
+      trainer_idle: new URL('../Images/Treiner/Fighter/Idle.png', import.meta.url).href,
+      trainer_walk: new URL('../Images/Treiner/Fighter/Walk.png', import.meta.url).href,
+      trainer_attack: new URL('../Images/Treiner/Fighter/Attack_1.png', import.meta.url).href,
+      trainer_hurt: new URL('../Images/Treiner/Fighter/Hurt.png', import.meta.url).href,
+      // Trainer variant 1 (Fighter)
+      trainer_1_idle: new URL('../Images/Treiner/Fighter/Idle.png', import.meta.url).href,
+      trainer_1_walk: new URL('../Images/Treiner/Fighter/Walk.png', import.meta.url).href,
+      trainer_1_attack: new URL('../Images/Treiner/Fighter/Attack_1.png', import.meta.url).href,
+      trainer_1_hurt: new URL('../Images/Treiner/Fighter/Hurt.png', import.meta.url).href,
+      // Trainer variant 2 (Samurai)
+      trainer_2_idle: new URL('../Images/Treiner/Samurai/Idle.png', import.meta.url).href,
+      trainer_2_walk: new URL('../Images/Treiner/Samurai/Walk.png', import.meta.url).href,
+      trainer_2_attack: new URL('../Images/Treiner/Samurai/Attack_1.png', import.meta.url).href,
+      trainer_2_hurt: new URL('../Images/Treiner/Samurai/Hurt.png', import.meta.url).href,
+      // Trainer variant 3 (Shinobi)
+      trainer_3_idle: new URL('../Images/Treiner/Shinobi/Idle.png', import.meta.url).href,
+      trainer_3_walk: new URL('../Images/Treiner/Shinobi/Walk.png', import.meta.url).href,
+      trainer_3_attack: new URL('../Images/Treiner/Shinobi/Attack_1.png', import.meta.url).href,
+      trainer_3_hurt: new URL('../Images/Treiner/Shinobi/Hurt.png', import.meta.url).href,
       mage: '/Images/Мудрец_Маг_(Sage_Mage).png',
       merchant: '/Images/Торговец_(Merchant).png',
       merchant_idle: new URL('../Images/Torgovets/Trader_1/Idle.png', import.meta.url).href,
       merchant_walk: new URL('../Images/Torgovets/Trader_1/Approval.png', import.meta.url).href,
       merchant_attack: new URL('../Images/Torgovets/Trader_1/Dialogue.png', import.meta.url).href,
       merchant_hurt: new URL('../Images/Torgovets/Trader_1/Idle_2.png', import.meta.url).href,
+      // Merchant variant 1 (Trader_1)
+      merchant_1_idle: new URL('../Images/Torgovets/Trader_1/Idle.png', import.meta.url).href,
+      merchant_1_walk: new URL('../Images/Torgovets/Trader_1/Approval.png', import.meta.url).href,
+      merchant_1_attack: new URL('../Images/Torgovets/Trader_1/Dialogue.png', import.meta.url).href,
+      merchant_1_hurt: new URL('../Images/Torgovets/Trader_1/Idle_2.png', import.meta.url).href,
+      // Merchant variant 2 (Trader_2)
+      merchant_2_idle: new URL('../Images/Torgovets/Trader_2/Idle.png', import.meta.url).href,
+      merchant_2_walk: new URL('../Images/Torgovets/Trader_2/Approval.png', import.meta.url).href,
+      merchant_2_attack: new URL('../Images/Torgovets/Trader_2/Dialogue.png', import.meta.url).href,
+      merchant_2_hurt: new URL('../Images/Torgovets/Trader_2/Idle_2.png', import.meta.url).href,
+      // Merchant variant 3 (Trader_3)
+      merchant_3_idle: new URL('../Images/Torgovets/Trader_3/Idle.png', import.meta.url).href,
+      merchant_3_walk: new URL('../Images/Torgovets/Trader_3/Approval.png', import.meta.url).href,
+      merchant_3_attack: new URL('../Images/Torgovets/Trader_3/Dialogue.png', import.meta.url).href,
+      merchant_3_hurt: new URL('../Images/Torgovets/Trader_3/Idle_2.png', import.meta.url).href,
       
       // Tiles
       tile_grass: '/Images/tiles/FieldsTile_01.png',
